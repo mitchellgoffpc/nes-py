@@ -47,7 +47,7 @@ class ROM(object):
     @property
     def header(self):
         """Return the header of the ROM file as bytes."""
-        return self.raw_data[:16]
+        return self.raw_data[:16].astype(int)
 
     @property
     def _magic(self):

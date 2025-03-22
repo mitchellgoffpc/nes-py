@@ -1,10 +1,7 @@
 """An environment wrapper to convert binary to discrete action space."""
-import gym
-from gym import Env
-from gym import Wrapper
+import gymnasium as gym
 
-
-class JoypadSpace(Wrapper):
+class JoypadSpace(gym.Wrapper):
     """An environment wrapper to convert binary to discrete action space."""
 
     # a mapping of buttons to binary values
@@ -25,7 +22,7 @@ class JoypadSpace(Wrapper):
         """Return the buttons that can be used as actions."""
         return list(cls._button_map.keys())
 
-    def __init__(self, env: Env, actions: list):
+    def __init__(self, env: gym.Env, actions: list):
         """
         Initialize a new binary to discrete action space wrapper.
 

@@ -4,9 +4,9 @@ import glob
 import itertools
 import os
 import sys
-import gym
-from gym.spaces import Box
-from gym.spaces import Discrete
+import gymnasium as gym
+from gymnasium.spaces import Box
+from gymnasium.spaces import Discrete
 import numpy as np
 from ._rom import ROM
 from ._image_viewer import ImageViewer
@@ -143,8 +143,9 @@ class NESEnv(gym.Env):
         self.viewer = None
         # setup a placeholder for a pointer to a backup state
         self._has_backup = False
-        # setup a done flag
+        # setup the done and trunc flags
         self.done = True
+        self.trunc = True
         # setup the controllers, screen, and RAM buffers
         self.controllers = [self._controller_buffer(port) for port in range(2)]
         self.screen = self._screen_buffer()
@@ -243,14 +244,13 @@ class NESEnv(gym.Env):
         # return the list of seeds used by RNG(s) in the environment
         return [seed]
 
-    def reset(self, seed=None, options=None, return_info=None):
+    def reset(self, seed=None, options=None):
         """
         Reset the state of the environment and returns an initial observation.
 
         Args:
             seed (int): an optional random number seed for the next episode
             options (any): unused
-            return_info (any): unused
 
         Returns:
             state (np.ndarray): next frame as a result of the given action
@@ -267,10 +267,11 @@ class NESEnv(gym.Env):
             _LIB.Reset(self._env)
         # call the after reset callback
         self._did_reset()
-        # set the done flag to false
+        # set the done and trunc flags to false
         self.done = False
+        self.trunc = False
         # return the screen from the emulator
-        return self.screen
+        return self.screen, {}
 
     def _did_reset(self):
         """Handle any RAM hacking after a reset occurs."""
@@ -286,13 +287,14 @@ class NESEnv(gym.Env):
         Returns:
             a tuple of:
             - state (np.ndarray): next frame as a result of the given action
-            - reward (float) : amount of reward returned after given action
-            - done (boolean): whether the episode has ended
+            - reward (float): amount of reward returned after given action
+            - done (boolean): whether the episode has terminated
+            - trunc (boolean): whether the episode has been truncated
             - info (dict): contains auxiliary diagnostic information
 
         """
         # if the environment is done, raise an error
-        if self.done:
+        if self.done or self.trunc:
             raise ValueError('cannot step in a done environment! call `reset`')
         # set the action on the controller
         self.controllers[0][:] = action
@@ -300,26 +302,31 @@ class NESEnv(gym.Env):
         _LIB.Step(self._env)
         # get the reward for this step
         reward = float(self._get_reward())
-        # get the done flag for this step
+        # get the done and trunc flags for this step
         self.done = bool(self._get_done())
+        self.trunc = bool(self._get_trunc())
         # get the info for this step
         info = self._get_info()
         # call the after step callback
-        self._did_step(self.done)
+        self._did_step(self.done or self.trunc)
         # bound the reward in [min, max]
         if reward < self.reward_range[0]:
             reward = self.reward_range[0]
         elif reward > self.reward_range[1]:
             reward = self.reward_range[1]
         # return the screen from the emulator and other relevant data
-        return self.screen, reward, self.done, info
+        return self.screen, reward, self.done, self.trunc, info
 
     def _get_reward(self):
         """Return the reward after a step occurs."""
         return 0
 
     def _get_done(self):
-        """Return True if the episode is over, False otherwise."""
+        """Return True if the episode has terminated, False otherwise."""
+        return False
+
+    def _get_trunc(self):
+        """Return True if the episode has been truncated. False otherwise."""
         return False
 
     def _get_info(self):
